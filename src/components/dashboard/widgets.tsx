@@ -1,33 +1,22 @@
 "use client";
 
-import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { 
-  Users, 
-  FileText, 
-  Calendar, 
-  TrendingUp, 
-  Bell, 
-  Clock,
-  Activity,
+import {
+  Users,
+  FileText,
+  Calendar,
+  TrendingUp,
+  Bell,
   AlertCircle,
   CheckCircle2,
   Check,
   Plus,
   Search,
   Settings,
-  BarChart3
 } from "lucide-react";
-
-interface StatItem {
-  label: string;
-  value: string;
-  change?: string;
-  trend?: "up" | "down" | "neutral";
-}
 
 interface TaskItem {
   id: number;
@@ -44,13 +33,6 @@ interface NotificationItem {
   time: string;
   type: "info" | "warning" | "success";
 }
-
-const stats: StatItem[] = [
-  { label: "Pacientes Atendidos", value: "1,247", change: "+12%", trend: "up" },
-  { label: "Consultas Pendientes", value: "23", change: "-5%", trend: "down" },
-  { label: "Documentos Procesados", value: "89", change: "+8%", trend: "up" },
-  { label: "Satisfacción Usuario", value: "94%", change: "+2%", trend: "up" },
-];
 
 const todayStats = [
   { icon: Users, value: "156", label: "Usuarios Activos", color: "text-blue-600" },
@@ -89,30 +71,6 @@ const monthlyProgress = [
   { label: "Eficiencia Operativa", value: 92 },
 ];
 
-const tasks: TaskItem[] = [
-  {
-    id: 1,
-    title: "Revisar informes mensuales",
-    priority: "alta",
-    dueDate: "2024-01-16",
-    completed: false,
-  },
-  {
-    id: 2,
-    title: "Actualizar base de datos",
-    priority: "media",
-    dueDate: "2024-01-18",
-    completed: false,
-  },
-  {
-    id: 3,
-    title: "Capacitación equipo",
-    priority: "baja",
-    dueDate: "2024-01-20",
-    completed: true,
-  },
-];
-
 const notifications: NotificationItem[] = [
   {
     id: 1,
@@ -137,13 +95,29 @@ const notifications: NotificationItem[] = [
   },
 ];
 
-const getPriorityColor = (priority: string) => {
-  switch (priority) {
-    case "alta": return "text-red-600 bg-red-50";
-    case "media": return "text-yellow-600 bg-yellow-50";
-    case "baja": return "text-green-600 bg-green-50";
-    default: return "text-gray-600 bg-gray-50";
-  }
+type PriorityStyle = { badge: string; label: string }
+
+const priorityStyles: Record<TaskItem["priority"], PriorityStyle> = {
+  alta: { badge: "border-red-200 bg-red-50 text-red-700", label: "Alta" },
+  media: { badge: "border-amber-200 bg-amber-50 text-amber-700", label: "Media" },
+  baja: { badge: "border-emerald-200 bg-emerald-50 text-emerald-700", label: "Baja" },
+};
+
+const fallbackPriorityStyle: PriorityStyle = {
+  badge: "border-slate-200 bg-slate-50 text-slate-600",
+  label: "Sin prioridad",
+};
+
+const getPriorityColor = (priority: TaskItem["priority"]): PriorityStyle =>
+  priorityStyles[priority] ?? fallbackPriorityStyle;
+
+const formatDueDate = (date: string) => {
+  const parsed = new Date(date);
+  return parsed.toLocaleDateString("es-ES", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 };
 
 const getNotificationIcon = (type: string) => {
@@ -214,22 +188,26 @@ export function Widgets() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {pendingTasks.map((task) => (
-              <div key={task.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                <div className="flex-1">
-                  <p className="font-medium text-sm">{task.title}</p>
-                  <p className="text-xs text-muted-foreground">{task.dueDate}</p>
+            {pendingTasks.map((task) => {
+              const priority = getPriorityColor(task.priority);
+
+              return (
+                <div key={task.id} className="flex items-center justify-between gap-3 rounded-lg bg-muted/50 p-3">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{task.title}</p>
+                    <p className="text-xs text-muted-foreground">Entrega: {formatDueDate(task.dueDate)}</p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Badge className={`border text-xs capitalize ${priority.badge}`}>
+                      {priority.label}
+                    </Badge>
+                    <Button variant="ghost" size="sm" aria-label="Marcar tarea como completada">
+                      <Check className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Badge className={`text-xs ${getPriorityColor(task.priority)}`}>
-                    {task.priority}
-                  </Badge>
-                  <Button variant="ghost" size="sm">
-                    <Check className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -262,12 +240,15 @@ export function Widgets() {
         <CardContent>
           <div className="space-y-3">
             {notifications.map((notification) => (
-              <div key={notification.id} className="flex items-start space-x-3 p-3 bg-muted/50 rounded-lg">
+              <div
+                key={notification.id}
+                className="flex items-start space-x-3 rounded-lg bg-muted/50 p-3 transition-colors hover:bg-muted"
+              >
                 {getNotificationIcon(notification.type)}
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm">{notification.title}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">{notification.title}</p>
                   <p className="text-xs text-muted-foreground">{notification.message}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{notification.time}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{notification.time}</p>
                 </div>
               </div>
             ))}

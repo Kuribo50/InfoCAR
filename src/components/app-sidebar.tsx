@@ -1,15 +1,10 @@
 "use client"
 
 import * as React from "react"
-import {
-  Map,
-  PieChart,
-  Home,
-  UserPlus,
-  Users,
-  Calendar,
-  Folder,
-} from "lucide-react"
+import Image from "next/image"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Map, PieChart, Home, UserPlus, Users, Calendar, Folder } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
 import { NavProjects } from "@/components/nav-projects"
@@ -149,17 +144,14 @@ const data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // Simular estado de usuario logueado - en una app real esto vendría de un contexto de autenticación
-  const [isLoggedIn, setIsLoggedIn] = React.useState(false)
-  const [currentUser, setCurrentUser] = React.useState<string | null>(null)
+  const [isLoggedIn, setIsLoggedIn] = React.useState(true)
 
   const handleLogout = () => {
     setIsLoggedIn(false)
-    setCurrentUser(null)
   }
 
   const handleLogin = () => {
     setIsLoggedIn(true)
-    setCurrentUser("Juan Pérez")
   }
 
   return (
@@ -168,25 +160,31 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <a href="#" className="flex items-center gap-3 hover:bg-gradient-to-r hover:from-teal-50 hover:to-blue-50 rounded-lg transition-all duration-200">
-                <div className="flex aspect-square size-16 items-center justify-center rounded-lg">
-                  <img src="/infocar-logo.svg" alt="InfoCar Logo" className="size-14" />
+              <Link
+                href="/dashboard"
+                className="group flex items-center gap-3 rounded-lg transition-all duration-200 hover:bg-gradient-to-r hover:from-teal-50 hover:to-blue-50"
+              >
+                <div className="flex aspect-square size-16 items-center justify-center rounded-lg bg-white shadow-sm">
+                  <Image src="/infocar-logo.svg" alt="InfoCar Logo" width={48} height={48} />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-bold text-xl bg-gradient-to-r from-teal-600 to-blue-600 bg-clip-text text-transparent">
+                  <span className="truncate text-xl font-bold text-teal-700 transition-colors group-hover:text-blue-700">
                     INFOCAR
                   </span>
-                  {!isLoggedIn && (
-                    <button 
-                      onClick={handleLogin}
-                      className="text-xs text-green-600 hover:text-green-700 text-left"
-                    >
-                      Iniciar Sesión
-                    </button>
-                  )}
+                  <span className="text-xs text-muted-foreground">Panel de control centralizado</span>
                 </div>
-              </a>
+              </Link>
             </SidebarMenuButton>
+            {!isLoggedIn && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 w-full text-xs"
+                onClick={handleLogin}
+              >
+                Iniciar sesión para administrar
+              </Button>
+            )}
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
@@ -196,6 +194,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
       <SidebarFooter className="bg-gradient-to-r from-teal-50 to-blue-50 border-t border-teal-200">
         <NavUser user={data.user} isLoggedIn={isLoggedIn} onLogout={handleLogout} />
+        {!isLoggedIn && (
+          <p className="px-2 pb-2 text-xs text-muted-foreground">
+            ¿Necesitas acceso? Solicita invitación desde el módulo de administración.
+          </p>
+        )}
       </SidebarFooter>
     </Sidebar>
   )
