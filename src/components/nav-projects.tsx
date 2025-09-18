@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import {
   Eye,
   Edit,
@@ -25,6 +26,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { cn } from "@/lib/utils"
 
 export function NavProjects({
   projects,
@@ -55,10 +57,10 @@ export function NavProjects({
         {projects.map((item) => (
           <SidebarMenuItem key={item.name}>
             <SidebarMenuButton asChild>
-              <a href={item.url}>
-                <item.icon />
+              <Link href={item.url} className="flex items-center gap-2">
+                <item.icon className="h-4 w-4" />
                 <span>{item.name}</span>
-              </a>
+              </Link>
             </SidebarMenuButton>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -73,29 +75,47 @@ export function NavProjects({
                 align={isMobile ? "end" : "start"}
               >
                 {item.actions?.view !== false && (
-                  <DropdownMenuItem onClick={() => handleAction('Ver', item.name)}>
+                  <DropdownMenuItem
+                    onSelect={(event) => {
+                      event.preventDefault()
+                      handleAction("Ver", item.name)
+                    }}
+                  >
                     <Eye className="text-muted-foreground" />
                     <span>Ver</span>
                   </DropdownMenuItem>
                 )}
                 {item.actions?.edit !== false && (
-                  <DropdownMenuItem onClick={() => handleAction('Editar', item.name)}>
+                  <DropdownMenuItem
+                    onSelect={(event) => {
+                      event.preventDefault()
+                      handleAction("Editar", item.name)
+                    }}
+                  >
                     <Edit className="text-muted-foreground" />
                     <span>Editar</span>
                   </DropdownMenuItem>
                 )}
                 {item.actions?.add !== false && (
-                  <DropdownMenuItem onClick={() => handleAction('Agregar', item.name)}>
+                  <DropdownMenuItem
+                    onSelect={(event) => {
+                      event.preventDefault()
+                      handleAction("Agregar", item.name)
+                    }}
+                  >
                     <Plus className="text-muted-foreground" />
                     <span>Agregar</span>
                   </DropdownMenuItem>
                 )}
-                {(item.actions?.delete !== false) && (
+                {item.actions?.delete !== false && (
                   <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      onClick={() => handleAction('Eliminar', item.name)}
-                      className="text-destructive focus:text-destructive"
+                    <DropdownMenuItem
+                      onSelect={(event) => {
+                        event.preventDefault()
+                        handleAction("Eliminar", item.name)
+                      }}
+                      className={cn("text-destructive focus:text-destructive")}
                     >
                       <Trash2 className="text-destructive" />
                       <span>Eliminar</span>
