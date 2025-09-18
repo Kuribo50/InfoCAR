@@ -1,0 +1,646 @@
+// -----------------------------------------------------------------------------
+// Prisma — CESFAM InfoCAR (PostgreSQL) — Versión simple (SIN denuncias)
+// Objetivo: que TODO sea administrable desde la DB (catálogos en tablas).
+// Recomendado: extensión CITEXT para correo/slug (unicidad case-insensitive).
+//   CREATE EXTENSION IF NOT EXISTS citext;
+// -----------------------------------------------------------------------------
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================== Catálogos =====================================
+// Catálogos = reemplazo de enums. Permiten agregar/editar valores desde la DB.
+// Úsalos para no “quemar” opciones en código (roles, estados, tipos, etc.).
+
+/// Catálogo de roles (LECTOR/EDITOR/ADMINISTRADOR, etc.)
+/// - `requierePassword`: si true, la app puede exigir clave en login (admin/editor).
+model Rol {
+  id                String   @id @default(cuid())
+  nombre            String   @unique
+  requierePassword  Boolean  @default(false)
+  creadoEn          DateTime @default(now())
+  actualizadoEn     DateTime @updatedAt
+
+  usuarios          Usuario[]
+}
+
+/// Catálogo de estados de noticia (BORRADOR/PUBLICADA/ARCHIVADA)
+/// - Controla lógica de visibilidad y flujos editoriales.
+model EstadoNoticiaCat {
+  id            String   @id @default(cuid())
+  nombre        String   @unique
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  noticias      Noticia[]
+}
+
+/// Catálogo de tipos de reacción (ME_GUSTA/NO_ME_GUSTA/...).
+/// - Totalmente ampliable (por ejemplo: “ME_IMPORTA”, etc.).
+model TipoReaccionCat {
+  id            String   @id @default(cuid())
+  nombre        String   @unique
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  reacciones    Reaccion[]
+}
+
+/// Catálogo de género de usuario (M/F/O/Prefiero no decirlo/...).
+model GeneroCat {
+  id            String   @id @default(cuid())
+  nombre        String   @unique
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  usuarios      Usuario[]
+}
+
+/// Catálogo de estado del usuario (ACTIVO/INACTIVO/SUSPENDIDO/...).
+model EstadoUsuarioCat {
+  id            String   @id @default(cuid())
+  nombre        String   @unique
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  usuarios      Usuario[]
+}
+
+/// Catálogo de cargos (Administrativo, Enfermera/o, TENS, Informático, etc.)
+model CargoCat {
+  id            String   @id @default(cuid())
+  nombre        String   @unique
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  usuarios      Usuario[]
+}
+
+/// Catálogo de funciones (Jefa Salud Familiar, Coordinadora SAR, etc.)
+model FuncionCat {
+  id            String   @id @default(cuid())
+  nombre        String   @unique
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  usuarios      Usuario[]
+}
+
+/// Catálogo de tipos de establecimiento (CESFAM/CECOSF/SAR).
+model TipoEstablecimientoCat {
+  id                String   @id @default(cuid())
+  nombre            String   @unique
+  creadoEn          DateTime @default(now())
+  actualizadoEn     DateTime @updatedAt
+
+  establecimientos  EstablecimientoSalud[]
+}
+
+/// Catálogo de colores de sector (AZUL/VERDE/ROJO/...).
+model ColorSectorCat {
+  id            String   @id @default(cuid())
+  nombre        String   @unique
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  sectores      SectorAPS[]
+}
+
+/// Catálogo de tipos de noticia (Informativa/Comunicado/Urgente/...).
+model TipoNoticiaCat {
+  id            String   @id @default(cuid())
+  nombre        String   @unique
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  noticias      Noticia[]
+}
+
+/// Catálogo de prioridad (ALTA/MEDIA/BAJA) con orden numérico para listados.
+model PrioridadNoticiaCat {
+  id            String   @id @default(cuid())
+  nombre        String   @unique
+  orden         Int      @default(100) // menor = más prioritario
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  noticias      Noticia[]
+}
+
+/// Catálogo de tipos de adjunto (imagen/pdf/docx/video/...).
+/// - `mime` opcional: útil para validación/visualización.
+model TipoAdjuntoCat {
+  id            String   @id @default(cuid())
+  nombre        String   @unique
+  mime          String?
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  adjuntos      Adjunto[]
+}
+
+/// Catálogo de tipos de notificación (SISTEMA/ALERTA/MENSAJE/...).
+model TipoNotificacionCat {
+  id                String   @id @default(cuid())
+  nombre            String   @unique
+  creadoEn          DateTime @default(now())
+  actualizadoEn     DateTime @updatedAt
+
+  notificaciones    Notificacion[]
+}
+
+// ============================== Núcleo APS ===================================
+
+/// Establecimientos del territorio (CESFAM/CECOSF/SAR)
+/// - Relación con usuarios (su lugar de trabajo) y visualizaciones (analytics).
+model EstablecimientoSalud {
+  id              String   @id @default(cuid())
+  nombre          String
+  tipoId          String
+  comuna          String
+  region          String
+  creadoEn        DateTime @default(now())
+  actualizadoEn   DateTime @updatedAt
+  eliminadoEn     DateTime?
+
+  tipo            TipoEstablecimientoCat @relation(fields: [tipoId], references: [id], onDelete: Restrict)
+
+  noticias        NoticiaEstablecimiento[]
+  usuarios        Usuario[]
+  visualizaciones Visualizacion[]
+
+  @@index([tipoId])
+  @@index([comuna])
+  @@index([region])
+}
+
+/// Sectores APS (A6 San Juan, color AZUL/VERDE/ROJO)
+/// - `colorId` a catálogo para estandarizar y poder cambiar sin tocar código.
+model SectorAPS {
+  id            String   @id @default(cuid())
+  nombre        String
+  codigo        String?
+  colorId       String?
+  coordinador   String?
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+  eliminadoEn   DateTime?
+
+  color         ColorSectorCat? @relation(fields: [colorId], references: [id], onDelete: SetNull)
+
+  noticias      NoticiaSector[]
+  usuarios      Usuario[]
+
+  @@index([colorId])
+  @@index([codigo])
+}
+
+// ============================== Usuarios & Sesiones ==========================
+
+/// Usuario identificado por RUT normalizado ("12345678-9").
+/// - `rolId` controla permisos (lector/editor/admin, etc.).
+/// - Correo `@db.Citext` para unicidad case-insensitive.
+/// - Soporta soft-delete (`eliminadoEn`) sin borrar datos históricos.
+model Usuario {
+  rut               String   @id
+  nombre            String?
+  apellido          String?
+  segundoApellido   String?
+  sectorId          String?
+  establecimientoId String?
+  cargoId           String?
+  funcionId         String?
+  estadoUsuarioId   String?
+  generoId          String?
+  fotoUrl           String?
+  fechaNacimiento   DateTime?
+  correo            String?  @db.Citext @unique
+  claveHash         String?              // puede ser null si el rol no requiere password
+  rolId             String
+  activo            Boolean  @default(true)
+  creadoEn          DateTime @default(now())
+  actualizadoEn     DateTime @updatedAt
+  eliminadoEn       DateTime?
+
+  // Relaciones (FKs y colecciones)
+  rol              Rol                  @relation(fields: [rolId], references: [id], onDelete: Restrict)
+  sector           SectorAPS?           @relation(fields: [sectorId], references: [id], onDelete: SetNull)
+  establecimiento  EstablecimientoSalud?@relation(fields: [establecimientoId], references: [id], onDelete: SetNull)
+  cargo            CargoCat?            @relation(fields: [cargoId], references: [id], onDelete: SetNull)
+  funcion          FuncionCat?          @relation(fields: [funcionId], references: [id], onDelete: SetNull)
+  estadoUsuario    EstadoUsuarioCat?    @relation(fields: [estadoUsuarioId], references: [id], onDelete: SetNull)
+  genero           GeneroCat?           @relation(fields: [generoId], references: [id], onDelete: SetNull)
+
+  noticiasAutor     Noticia[]      @relation("AutorNoticias")
+  sesiones          Sesion[]
+  comentarios       Comentario[]
+  reacciones        Reaccion[]
+  visualizaciones   Visualizacion[]
+  marcadores        Marcador[]
+  mensajes          Mensaje[]
+  bitacoras         Auditoria[]
+  clavesApi         ClaveApi[]
+  borradores        Borrador[]
+  notificaciones    Notificacion[]
+  conversaciones    ParticipanteConversacion[]
+  menciones         Mencion[]
+
+  @@index([rolId])
+  @@index([sectorId])
+  @@index([establecimientoId])
+  @@index([activo])
+  Noticia Noticia[] @relation("EditorNoticias")
+}
+
+/// Sesión de usuario (opcionalmente guarda IP/UserAgent para auditoría/analytics).
+/// - Si no necesitas IP, déjalo null y no lo puebles en la app.
+model Sesion {
+  id            String   @id @default(cuid())
+  usuarioRut    String
+  ip            String?
+  userAgent     String?
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+  cerradoEn     DateTime?
+
+  usuario Usuario @relation(fields: [usuarioRut], references: [rut], onDelete: Cascade)
+
+  @@index([usuarioRut])
+}
+
+// ============================== Contenidos (Noticias) ========================
+
+/// Noticia (puede editarse incluso PUBLICADA; la app decide reglas).
+/// - `estadoId` apunta a catálogo (BORRADOR/PUBLICADA/ARCHIVADA).
+/// - `ultimaEdicionEn/Por`: trazabilidad de edición.
+model Noticia {
+  id                String   @id @default(cuid())
+  titulo            String
+  slug              String   @unique @db.Citext
+  bajada            String?
+  contenidoHtml     String
+  portadaUrl        String?
+  estadoId          String                     // FK a EstadoNoticiaCat
+  tipoNoticiaId     String?
+  prioridadId       String?
+  vistas            Int      @default(0)
+  like              Int      @default(0)
+  dislike           Int      @default(0)
+  comentariosCount  Int      @default(0)
+  publicadoEn       DateTime?
+  creadoEn          DateTime @default(now())
+  actualizadoEn     DateTime @updatedAt
+  eliminadoEn       DateTime?
+
+  // Trazabilidad de edición (permite editar aunque esté PUBLICADA)
+  ultimaEdicionEn   DateTime?
+  ultimaEdicionPor  String?                 // FK a Usuario.rut (editor)
+
+  // Autor original
+  autorRut          String
+
+  // Relaciones
+  autor       Usuario             @relation("AutorNoticias", fields: [autorRut], references: [rut], onDelete: Restrict)
+  editor      Usuario?            @relation("EditorNoticias", fields: [ultimaEdicionPor], references: [rut], onDelete: SetNull)
+  estado      EstadoNoticiaCat    @relation(fields: [estadoId], references: [id], onDelete: Restrict)
+  tipo        TipoNoticiaCat?     @relation(fields: [tipoNoticiaId], references: [id], onDelete: SetNull)
+  prioridad   PrioridadNoticiaCat?@relation(fields: [prioridadId], references: [id], onDelete: SetNull)
+
+  comentarios       Comentario[]
+  adjuntos          Adjunto[]
+  visualizaciones   Visualizacion[]
+  etiquetas         NoticiaEtiqueta[]
+  categorias        NoticiaCategoria[]
+  establecimientos  NoticiaEstablecimiento[]
+  sectores          NoticiaSector[]
+  reacciones        Reaccion[]
+  marcadores        Marcador[]
+
+  @@index([autorRut])
+  @@index([estadoId])
+  @@index([creadoEn])
+  @@index([publicadoEn])
+  @@index([tipoNoticiaId])
+  @@index([prioridadId])
+}
+
+/// Comentario en una noticia.
+/// - Soft-delete con `eliminadoEn`.
+/// - Soporta menciones a usuarios.
+model Comentario {
+  id            String   @id @default(cuid())
+  noticiaId     String
+  usuarioRut    String
+  contenido     String
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+  eliminadoEn   DateTime?
+
+  noticia Noticia @relation(fields: [noticiaId], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuarioRut], references: [rut], onDelete: Cascade)
+  menciones Mencion[]
+
+  @@index([noticiaId])
+  @@index([usuarioRut])
+  @@index([creadoEn])
+}
+
+/// Etiquetas libres (tags) para clasificar noticias.
+model Etiqueta {
+  id        String            @id @default(cuid())
+  nombre    String            @unique
+  noticias  NoticiaEtiqueta[]
+}
+
+/// Relación N:M entre Noticia y Etiqueta.
+model NoticiaEtiqueta {
+  noticiaId  String
+  etiquetaId String
+
+  noticia  Noticia  @relation(fields: [noticiaId], references: [id], onDelete: Cascade)
+  etiqueta Etiqueta @relation(fields: [etiquetaId], references: [id], onDelete: Cascade)
+
+  @@id([noticiaId, etiquetaId])
+  @@index([etiquetaId])
+}
+
+/// Categorías (taxonomía “cerrada” administrable desde DB).
+model Categoria {
+  id        String             @id @default(cuid())
+  nombre    String             @unique
+  noticias  NoticiaCategoria[]
+}
+
+/// Relación N:M entre Noticia y Categoría.
+model NoticiaCategoria {
+  noticiaId   String
+  categoriaId String
+
+  noticia   Noticia   @relation(fields: [noticiaId], references: [id], onDelete: Cascade)
+  categoria Categoria @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
+
+  @@id([noticiaId, categoriaId])
+  @@index([categoriaId])
+}
+
+/// Alcance por Establecimiento (si la noticia aplica a uno o varios).
+model NoticiaEstablecimiento {
+  noticiaId         String
+  establecimientoId String
+
+  noticia         Noticia              @relation(fields: [noticiaId], references: [id], onDelete: Cascade)
+  establecimiento EstablecimientoSalud @relation(fields: [establecimientoId], references: [id], onDelete: Cascade)
+
+  @@id([noticiaId, establecimientoId])
+  @@index([establecimientoId])
+}
+
+/// Alcance por Sector APS (si la noticia aplica a uno o varios).
+model NoticiaSector {
+  noticiaId String
+  sectorId  String
+
+  noticia Noticia  @relation(fields: [noticiaId], references: [id], onDelete: Cascade)
+  sector  SectorAPS @relation(fields: [sectorId], references: [id], onDelete: Cascade)
+
+  @@id([noticiaId, sectorId])
+  @@index([sectorId])
+}
+
+// ============================== Interacciones =================================
+
+/// Reacción del usuario a una noticia (ME_GUSTA/NO_ME_GUSTA/...).
+/// - `@@unique([noticiaId, usuarioRut])` = 1 reacción por usuario y noticia.
+/// - El tipo está en catálogo (extensible).
+model Reaccion {
+  id         String   @id @default(cuid())
+  noticiaId  String
+  usuarioRut String
+  tipoId     String
+  creadoEn   DateTime @default(now())
+
+  noticia Noticia         @relation(fields: [noticiaId], references: [id], onDelete: Cascade)
+  usuario Usuario         @relation(fields: [usuarioRut], references: [rut], onDelete: Cascade)
+  tipo    TipoReaccionCat @relation(fields: [tipoId], references: [id], onDelete: Restrict)
+
+  @@unique([noticiaId, usuarioRut])
+  @@index([noticiaId])
+  @@index([usuarioRut])
+  @@index([tipoId])
+}
+
+/// Marcador (guardar noticia para leer después).
+/// - `@@unique([noticiaId, usuarioRut])` = un marcador por usuario/noticia.
+model Marcador {
+  id         String   @id @default(cuid())
+  noticiaId  String
+  usuarioRut String
+  creadoEn   DateTime @default(now())
+
+  noticia Noticia @relation(fields: [noticiaId], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuarioRut], references: [rut], onDelete: Cascade)
+
+  @@unique([noticiaId, usuarioRut])
+  @@index([noticiaId])
+  @@index([usuarioRut])
+}
+
+/// Visualización registrada (para métricas).
+/// - `usuarioRut` opcional (null = anónimo/interno).
+/// - `ip`/`userAgent` opcionales: sólo si te aportan analytics/auditoría.
+model Visualizacion {
+  id                String   @id @default(cuid())
+  noticiaId         String
+  usuarioRut        String?
+  establecimientoId String?
+  ip                String?
+  userAgent         String?
+  creadoEn          DateTime @default(now())
+
+  noticia         Noticia              @relation(fields: [noticiaId], references: [id], onDelete: Cascade)
+  usuario         Usuario?             @relation(fields: [usuarioRut], references: [rut], onDelete: SetNull)
+  establecimiento EstablecimientoSalud?@relation(fields: [establecimientoId], references: [id], onDelete: SetNull)
+
+  @@index([noticiaId])
+  @@index([usuarioRut])
+  @@index([ip])
+  @@index([establecimientoId])
+}
+
+/// Adjunto de noticia (imagen/pdf/docx/video/...).
+/// - `tipoAdjuntoId` apunta a catálogo y permite validaciones por tipo/mime.
+model Adjunto {
+  id            String   @id @default(cuid())
+  noticiaId     String
+  url           String
+  tipoAdjuntoId String?
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+  eliminadoEn   DateTime?
+
+  noticia Noticia         @relation(fields: [noticiaId], references: [id], onDelete: Cascade)
+  tipo    TipoAdjuntoCat? @relation(fields: [tipoAdjuntoId], references: [id], onDelete: SetNull)
+
+  @@index([noticiaId])
+  @@index([tipoAdjuntoId])
+}
+
+// ============================== Gobernanza / Soporte ==========================
+
+/// Auditoría simple (quién hizo qué y cuándo).
+/// - `accion`: verbo de negocio (CREAR_NOTICIA, PUBLICAR, EDITAR, ELIMINAR, LOGIN, etc.)
+/// - `entidad`/`entidadId`: referencia “lógica” para ubicar el objeto.
+model Auditoria {
+  id         String   @id @default(cuid())
+  usuarioRut String?
+  accion     String
+  entidad    String
+  entidadId  String
+  ip         String?
+  userAgent  String?
+  creadoEn   DateTime @default(now())
+
+  usuario Usuario? @relation(fields: [usuarioRut], references: [rut], onDelete: SetNull)
+
+  @@index([usuarioRut])
+  @@index([entidad, entidadId])
+  @@index([creadoEn])
+}
+
+/// Notificación dirigida a un usuario.
+/// - `tipoNotificacionId` a catálogo (SISTEMA/ALERTA/...).
+/// - `leido`: estado de lectura.
+model Notificacion {
+  id                 String   @id @default(cuid())
+  usuarioRut         String
+  tipoNotificacionId String?
+  mensaje            String
+  leido              Boolean  @default(false)
+  creadoEn           DateTime @default(now())
+
+  usuario Usuario            @relation(fields: [usuarioRut], references: [rut], onDelete: Cascade)
+  tipo    TipoNotificacionCat? @relation(fields: [tipoNotificacionId], references: [id], onDelete: SetNull)
+
+  @@index([usuarioRut])
+  @@index([leido])
+  @@index([tipoNotificacionId])
+}
+
+// ============================== Mensajería interna ============================
+
+/// Conversación (conjunto de mensajes).
+/// - Soft-delete opcional (`eliminadoEn`).
+model Conversacion {
+  id            String   @id @default(cuid())
+  titulo        String?
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+  eliminadoEn   DateTime?
+
+  mensajes       Mensaje[]
+  participantes  ParticipanteConversacion[]
+}
+
+/// Mensaje dentro de una conversación.
+/// - Soporta menciones a usuarios.
+/// - Soft-delete (`eliminadoEn`).
+model Mensaje {
+  id             String   @id @default(cuid())
+  conversacionId String
+  usuarioRut     String
+  contenido      String
+  creadoEn       DateTime @default(now())
+  eliminadoEn    DateTime?
+
+  conversacion Conversacion @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
+  usuario      Usuario      @relation(fields: [usuarioRut], references: [rut], onDelete: Cascade)
+  menciones    Mencion[]
+
+  @@index([conversacionId])
+  @@index([usuarioRut])
+}
+
+/// Relación N:M usuario-participación en conversación.
+model ParticipanteConversacion {
+  conversacionId String
+  usuarioRut     String
+
+  conversacion Conversacion @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
+  usuario      Usuario      @relation(fields: [usuarioRut], references: [rut], onDelete: Cascade)
+
+  @@id([conversacionId, usuarioRut])
+  @@index([usuarioRut])
+}
+
+// ============================== Borradores / Claves / Parámetros =============
+
+/// Borrador personal de un usuario (para noticias u otros textos).
+model Borrador {
+  id             String   @id @default(cuid())
+  usuarioRut     String
+  titulo         String
+  contenido      String
+  creadoEn       DateTime @default(now())
+  actualizadoEn  DateTime @updatedAt
+  eliminadoEn    DateTime?
+
+  usuario Usuario @relation(fields: [usuarioRut], references: [rut], onDelete: Cascade)
+
+  @@index([usuarioRut])
+}
+
+/// Claves API para integraciones/automatizaciones.
+/// - **¿Para qué?**: permitir que un servicio externo (cron, bot, ETL) llame a tu API
+///   sin “login web”, con permisos ligados al dueño de la clave.
+/// - **¿Cómo funciona?**: la app emite/guarda un `clave` (token). Los clientes lo
+///   envían en `Authorization: Bearer <clave>`; la API valida y mapea a `usuarioRut`.
+/// - Puedes **revocar** la clave con `revocadoEn` sin borrar históricos.
+model ClaveApi {
+  id            String   @id @default(cuid())
+  clave         String   @unique       // token secreto (genera seguro en la app)
+  usuarioRut    String
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+  revocadoEn    DateTime?
+
+  usuario Usuario @relation(fields: [usuarioRut], references: [rut], onDelete: Cascade)
+
+  @@index([usuarioRut])
+}
+
+/// Parámetros del sistema (feature flags, URLs, textos institucionales, etc.).
+/// - Adminístra valores clave/valor sin tocar código.
+model ParametroSistema {
+  id            String   @id @default(cuid())
+  llave         String   @unique
+  valor         String
+  descripcion   String?
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+}
+
+// ============================== Menciones =====================================
+
+/// Mención de un usuario en comentario o mensaje.
+/// - Valida en la app que exista `comentarioId` XOR `mensajeId`.
+model Mencion {
+  id                    String   @id @default(cuid())
+  usuarioMencionadoRut  String
+  comentarioId          String?
+  mensajeId             String?
+  creadoEn              DateTime @default(now())
+
+  usuarioMencionado Usuario   @relation(fields: [usuarioMencionadoRut], references: [rut], onDelete: Cascade)
+  comentario        Comentario? @relation(fields: [comentarioId], references: [id], onDelete: Cascade)
+  mensaje           Mensaje?    @relation(fields: [mensajeId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioMencionadoRut])
+  @@index([comentarioId])
+  @@index([mensajeId])
+}
